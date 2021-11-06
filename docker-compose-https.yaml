@@ -1,0 +1,48 @@
+version: "3"  # optional since v1.27.0
+services:
+
+  reverse-proxy:
+    image: traefik:v2.5
+    # Enables the web UI and tells Traefik to listen to docker
+    command: 
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--api.insecure=true" 
+      - "--providers.docker"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=dev@bfv.io"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      # volume mapping for the storage of acme.json
+      - c:/docker/certs/letsencrypt/:/letsencrypt
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro 
+
+  db:
+    image: docker.io/devbfvio/sports2020-db:12.2.6
+    volumes: 
+      - c:/docker/license/oe-12.2:/app/license
+    environment: 
+      - DB_NAME=sports2020
+      
+  pas:
+    image: docker.io/devbfvio/sports2020-pas:12.2.6
+    volumes: 
+      - c:/docker/license/oe-12.2:/app/license
+    depends_on: 
+      - db
+    environment: 
+      - OE_ENVIRONMENT=docker-compose
+      - INSTANCE_ID=pas-1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pas.rule=Host(`poetsummit.bfv.io`)"
+      - "traefik.http.routers.pas.entrypoints=websecure"
+      - "traefik.http.routers.pas.tls.certresolver=myresolver"
+      
